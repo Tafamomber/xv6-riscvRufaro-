@@ -125,6 +125,24 @@ walkaddr(pagetable_t pagetable, uint64 va)
   return pa;
 }
 
+int
+pgaccess(pagetable_t pagetable, uint64 *va_array, int num_pages, uint64 *accessed)
+{
+    *accessed = 0;
+    for (int i = 0; i < num_pages; i++) {
+        uint64 va = va_array[i];
+        pte_t *pte = walk(pagetable, va, 0);
+        if (pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0) {
+            continue;
+        }
+        if (*pte & PTE_A) {
+            *accessed |= (1 << i);  
+            *pte &= ~PTE_A;          
+        }
+    }
+    return 0;
+}
+
 // add a mapping to the kernel page table.
 // only used when booting.
 // does not flush TLB or enable paging.
@@ -133,6 +151,35 @@ kvmmap(pagetable_t kpgtbl, uint64 va, uint64 pa, uint64 sz, int perm)
 {
   if(mappages(kpgtbl, va, sz, pa, perm) != 0)
     panic("kvmmap");
+}
+
+// New vmprint function 
+void
+vmprint(pagetable_t pagetable) {
+    printf("page table %p\n", pagetable);
+    for (int i = 0; i < 512; i++) {
+        pte_t pte = pagetable[i];
+        if (pte & PTE_V) { // If valid
+            uint64 child = PTE2PA(pte);
+            printf("..%d: pte %p pa %p\n", i, pte, child);
+            pagetable_t child_pt = (pagetable_t) child;
+            for (int j = 0; j < 512; j++) {
+                pte_t child_pte = child_pt[j];
+                if (child_pte & PTE_V) {
+                    uint64 child_pa = PTE2PA(child_pte);
+                    printf("....%d: pte %p pa %p\n", j, child_pte, child_pa);
+                    pagetable_t grandchild_pt = (pagetable_t) child_pa;
+                    for (int k = 0; k < 512; k++) {
+                        pte_t grandchild_pte = grandchild_pt[k];
+                        if (grandchild_pte & PTE_V) {
+                            uint64 grandchild_pa = PTE2PA(grandchild_pte);
+                            printf("......%d: pte %p pa %p\n", k, grandchild_pte, grandchild_pa);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 // Create PTEs for virtual addresses starting at va that refer to
@@ -170,6 +217,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   }
   return 0;
 }
+
 
 // Remove npages of mappings starting from va. va must be
 // page-aligned. The mappings must exist.
