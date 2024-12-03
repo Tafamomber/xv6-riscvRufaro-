@@ -31,6 +31,7 @@ w_mstatus(uint64 x)
   asm volatile("csrw mstatus, %0" : : "r" (x));
 }
 
+#define PTE_A (1L << 6)
 // machine exception program counter, holds the
 // instruction address to which a return from
 // exception will go.
@@ -348,6 +349,21 @@ sfence_vma()
 
 typedef uint64 pte_t;
 typedef uint64 *pagetable_t; // 512 PTEs
+
+int pgaccess(uint64 *va_array, int num_pages, int *accessed) {
+    struct proc *p = myproc();
+    pagetable_t pagetable = p->pagetable;
+    *accessed = 0; 
+    for (int i = 0; i < num_pages; i++) {
+        uint64 va = va_array[i];
+        pte_t *pte = walk(pagetable, va, 0);
+        if (pte && (*pte & PTE_V) && (*pte & PTE_A)) { 
+            *accessed |= (1 << i);
+            *pte &= ~PTE_A; 
+        }
+    }
+    return 0;
+}
 
 #endif // __ASSEMBLER__
 
