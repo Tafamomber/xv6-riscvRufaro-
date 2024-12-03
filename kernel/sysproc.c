@@ -91,3 +91,20 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+uint64
+sys_pgaccess(void)
+{
+  uint64 va_array;     
+  int num_pages;       
+  uint64 accessed_ptr; 
+  if (argaddr(0, &va_array) < 0 ||   
+      argint(1, &num_pages) < 0 ||   
+      argaddr(2, &accessed_ptr) < 0) 
+    return -1;
+  int accessed = 0;
+  if (pgaccess((uint64*)va_array, num_pages, &accessed) < 0)
+    return -1;
+  if (copyout(myproc()->pagetable, accessed_ptr, (char *)&accessed, sizeof(accessed)) < 0)
+    return -1;
+  return 0; 
+}
